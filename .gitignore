@@ -1,0 +1,9 @@
+*.egg-info
+*.py[co]
+.*.sw[a-z]
+.coverage
+.tox
+.venv.touch
+/venv*
+coverage-html
+dist
