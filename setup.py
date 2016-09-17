@@ -20,5 +20,6 @@ setup(
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
     py_modules=['rubyvenv'],
+    install_requires=['distro', 'six'],
     entry_points={'console_scripts': ['rubyvenv = rubyvenv:main']},
 )
