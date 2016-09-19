@@ -152,7 +152,16 @@ def make_environment(dest, version):
     dest = os.path.abspath(dest)
     mkdirp(dest)
     with tarfile.open(tar_filename) as tar_file:
-        members = tar_file.getmembers()
+        # Remove the /cache directory.
+        # It is unnecessary, and on precise it is a broken symlink
+        members = [
+            member for member in tar_file.getmembers()
+            if (
+                not member.name.endswith('/cache') and
+                '/cache/' not in member.name
+            )
+        ]
+
         # Remove the first path segment so we extract directly into the
         # destination directory
         for member in members:
