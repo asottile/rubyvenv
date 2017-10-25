@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 import argparse
 import collections
 import contextlib
+import distutils.spawn
 import functools
 import gzip
 import io
@@ -131,14 +132,20 @@ def list_versions():
 
 def pick_version(version):
     platform_info = get_platform_info()
-    if version != 'latest':
-        return Version(version, _download_url(platform_info, version))
-    else:
+    if version == 'latest':
         return get_prebuilt_versions(platform_info)[-1]
+    else:
+        return Version(version, _download_url(platform_info, version))
 
 
 def urlopen_closable(*args):
     return contextlib.closing(six.moves.urllib.request.urlopen(*args))
+
+
+def _write_activate(dest, more=''):
+    with io.open(os.path.join(dest, 'bin', 'activate'), 'w') as activate:
+        activate.write(ACTIVATE.replace('DIRECTORY', pipes.quote(dest)))
+        activate.write(more)
 
 
 def make_environment(dest, version):
@@ -170,8 +177,15 @@ def make_environment(dest, version):
             else:
                 member.name = ''
         tar_file.extractall(dest, members)
-    with io.open(os.path.join(dest, 'bin', 'activate'), 'w') as activate:
-        activate.write(ACTIVATE.replace('DIRECTORY', pipes.quote(dest)))
+    _write_activate(dest)
+
+
+def make_system_environment(dest):
+    mkdirp(os.path.join(dest, 'bin'))
+    ruby = distutils.spawn.find_executable('ruby')
+    gem = distutils.spawn.find_executable('gem')
+    assert ruby and gem, (ruby, gem)
+    _write_activate(dest, more=SET_GEM_HOME)
 
 
 def main(argv=None):
@@ -189,8 +203,12 @@ def main(argv=None):
     else:
         if not args.dest:
             parser.error('DEST_DIR is required')
-        version = pick_version(args.ruby)
-        return make_environment(args.dest, version)
+        args.dest = os.path.abspath(args.dest)
+        if args.ruby == 'system':
+            return make_system_environment(args.dest)
+        else:
+            version = pick_version(args.ruby)
+            return make_environment(args.dest, version)
 
 
 # Roughly stolen from python virtualenv 15.0.1
@@ -220,6 +238,12 @@ deactivate_rubyvenv () {
         unset _OLD_RUBYVENV_PS1
     fi
 
+    if ! [ -z "${_OLD_RUBYVENV_GEM_HOME+_}" ] ; then
+        GEM_HOME="$_OLD_RUBYVENV_GEM_HOME"
+        export GEM_HOME
+        unset _OLD_RUBYVENV_GEM_HOME
+    fi
+
     unset RUBYVENV
     if [ ! "${1-}" = "nondestructive" ] ; then
         # Self destruct!
@@ -234,12 +258,8 @@ RUBYVENV=DIRECTORY
 export RUBYVENV
 
 _OLD_RUBYVENV_PATH="$PATH"
-PATH="$RUBYVENV/bin:$PATH"
+PATH="${RUBYVENV}/bin:${RUBYVENV}/lib/gems/bin:${PATH}"
 export PATH
-
-_OLD_RUBYVENV_PS1="$PS1"
-PS1="($(basename "$RUBYVENV")) $PS1"
-export PS1
 
 # This should detect bash and zsh, which have a hash command that must
 # be called to get it to forget past commands.  Without forgetting
@@ -247,6 +267,16 @@ export PS1
 if [ -n "${BASH-}" ] || [ -n "${ZSH_VERSION-}" ] ; then
     hash -r 2>/dev/null
 fi
+
+_OLD_RUBYVENV_PS1="$PS1"
+PS1="($(basename "$RUBYVENV")) $PS1"
+export PS1
+'''
+
+SET_GEM_HOME = '''\
+_OLD_RUBYVENV_GEM_HOME="${GEM_HOME:-}"
+GEM_HOME="$RUBYVENV/lib/gems"
+export GEM_HOME
 '''
 
 if __name__ == '__main__':

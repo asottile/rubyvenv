@@ -253,12 +253,19 @@ def _run(env, sh):
 @pytest.mark.usefixtures('mocked_cache')
 def test_integration(tmpdir):
     env = tmpdir.join('rubyvenv')
-    envp = env.strpath
-    assert rubyvenv.main((envp,)) is None
+    assert not rubyvenv.main((env.strpath,))
 
-    assert _run(envp, 'echo $RUBYVENV') == envp + '\n'
-    assert _run(envp, 'which ruby') == env.join('bin/ruby').strpath + '\n'
-    assert _run(envp, 'which gem') == env.join('bin/gem').strpath + '\n'
+    assert _run(env, 'echo $RUBYVENV') == env + '\n'
+    assert _run(env, 'which ruby') == env.join('bin/ruby') + '\n'
+    assert _run(env, 'which gem') == env.join('bin/gem') + '\n'
 
-    _run(envp, 'gem install sass --no-ri --no-rdoc')
-    assert _run(envp, 'which sass') == env.join('bin/sass').strpath + '\n'
+    _run(env, 'gem install sass --no-ri --no-rdoc')
+    assert _run(env, 'which sass') == env.join('bin/sass') + '\n'
+
+
+def test_integration_system(tmpdir):
+    env = tmpdir.join('rubyvenv')
+    assert not rubyvenv.main((env.strpath, '--ruby', 'system'))
+
+    _run(env, 'gem install sass --no-ri --no-rdoc')
+    assert _run(env, 'which sass') == env.join('lib/gems/bin/sass') + '\n'
