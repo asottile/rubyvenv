@@ -15,7 +15,7 @@ import rubyvenv
 from testing.resources import resource
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def mocked_cache(tmpdir):
     cache_dir = tmpdir.join('.cache')
     with mock.patch.dict(os.environ, {'XDG_CACHE_HOME': cache_dir.strpath}):
@@ -151,7 +151,7 @@ def test_version_to_filename_filename_to_version_roundtrip():
     assert ret == version
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def xenial():
     with mock.patch.object(platform, 'machine', return_value='x86_64'):
         with mock.patch.object(distro, 'id', return_value='ubuntu'):
@@ -159,7 +159,7 @@ def xenial():
                 yield
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def returns_xenial():
     contents = io.open(resource('ubuntu_16_04_x86_64.htm.gzip'), 'rb').read()
     with mock.patch.object(
