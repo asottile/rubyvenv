@@ -1,7 +1,7 @@
 *.egg-info
 *.py[co]
 .*.sw[a-z]
-.cache
+.pytest_cache
 .coverage
 .tox
 .venv.touch
