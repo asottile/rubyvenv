@@ -259,7 +259,7 @@ def test_integration(tmpdir):
     assert _run(env, 'which ruby') == env.join('bin/ruby') + '\n'
     assert _run(env, 'which gem') == env.join('bin/gem') + '\n'
 
-    _run(env, 'gem install sass --no-ri --no-rdoc')
+    _run(env, 'gem install sass --no-document')
     assert _run(env, 'which sass') == env.join('bin/sass') + '\n'
 
 
@@ -267,5 +267,5 @@ def test_integration_system(tmpdir):
     env = tmpdir.join('rubyvenv')
     assert not rubyvenv.main((env.strpath, '--ruby', 'system'))
 
-    _run(env, 'gem install sass --no-ri --no-rdoc')
+    _run(env, 'gem install sass --no-document')
     assert _run(env, 'which sass') == env.join('lib/gems/bin/sass') + '\n'
