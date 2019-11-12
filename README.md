@@ -1,5 +1,5 @@
-[![Build Status](https://travis-ci.org/asottile/rubyvenv.svg?branch=master)](https://travis-ci.org/asottile/rubyvenv)
-[![Coverage Status](https://img.shields.io/coveralls/asottile/rubyvenv.svg?branch=master)](https://coveralls.io/r/asottile/rubyvenv)
+[![Build Status](https://dev.azure.com/asottile/asottile/_apis/build/status/asottile.rubyvenv?branchName=master)](https://dev.azure.com/asottile/asottile/_build/latest?definitionId=50&branchName=master)
+[![Azure DevOps coverage](https://img.shields.io/azure-devops/coverage/asottile/asottile/50/master.svg)](https://dev.azure.com/asottile/asottile/_build/latest?definitionId=50&branchName=master)
 
 rubyvenv
 ========
