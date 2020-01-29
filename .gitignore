@@ -1,10 +1,9 @@
 *.egg-info
 *.py[co]
-.*.sw[a-z]
-.pytest_cache
-.coverage
-.tox
-.venv.touch
+/.coverage
+/.mypy_cache
+/.nenv-css-explore/
+/.tox
+/dist
 /venv*
 coverage-html
-dist

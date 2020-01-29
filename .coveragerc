@@ -7,6 +7,8 @@ omit =
     setup.py
 
 [report]
+show_missing = True
+skip_covered = True
 exclude_lines =
     # Have to re-enable the standard pragma
     \#\s*pragma: no cover
@@ -16,6 +18,10 @@ exclude_lines =
     ^\s*raise NotImplementedError\b
     ^\s*return NotImplemented\b
     ^\s*raise$
+
+    # Ignore typing-related things
+    ^if (False|TYPE_CHECKING):
+    : \.\.\.$
 
     # Don't complain if non-runnable code isn't run:
     ^if __name__ == ['"]__main__['"]:$
