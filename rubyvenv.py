@@ -1,12 +1,8 @@
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import argparse
-import collections
-import contextlib
 import distutils.spawn
 import functools
 import gzip
+import html.parser
 import io
 import os.path
 import pipes
@@ -14,202 +10,18 @@ import platform
 import shutil
 import tarfile
 import tempfile
+import urllib.parse
+import urllib.request
+from typing import Callable
+from typing import ContextManager
+from typing import IO
+from typing import List
+from typing import NamedTuple
+from typing import Optional
+from typing import Sequence
+from typing import Tuple
 
 import distro
-import six
-
-
-RVM = 'https://rvm.io/binaries/{name}/{version}/{arch}/'
-
-
-Platform = collections.namedtuple('Platform', ('name', 'version', 'arch'))
-Version = collections.namedtuple('Version', ('version', 'url'))
-
-
-def get_cache_dir():
-    return os.path.join(
-        os.getenv('XDG_CACHE_HOME', os.path.expanduser('~/.cache')),
-        'rubyvenv',
-    )
-
-
-def ensure_cache_file(relpath, get_fileobj):
-    cache_dir = get_cache_dir()
-    path = os.path.join(cache_dir, relpath)
-    if os.path.exists(path):
-        return path
-    else:
-        mkdirp(os.path.dirname(path))
-        # Write to a temporary file and then rename for atomicity
-        tmpdir = os.path.join(cache_dir, 'tmp')
-        mkdirp(tmpdir)
-        try:
-            with tempfile.NamedTemporaryFile(dir=tmpdir, delete=False) as dst:
-                with get_fileobj() as src:
-                    shutil.copyfileobj(src, dst)
-        except BaseException:
-            os.remove(dst.name)
-            raise
-        os.rename(dst.name, path)
-        return path
-
-
-def mkdirp(path):
-    try:
-        os.makedirs(path)
-    except OSError:
-        if not os.path.isdir(path):
-            raise
-
-
-def get_platform_info():
-    return Platform(distro.id(), distro.version(), platform.machine())
-
-
-class GetsAHrefs(six.moves.html_parser.HTMLParser):
-    def __init__(self):
-        # Old style class in python2
-        six.moves.html_parser.HTMLParser.__init__(self)
-        self.hrefs = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'a':
-            self.hrefs.append(dict(attrs)['href'])
-
-
-def _decode_response(resp_bytes):
-    """Even though we request identity, rvm.io sends us gzip."""
-    try:
-        # Try UTF-8 first, in case they ever fix their bug
-        return resp_bytes.decode('UTF-8')
-    except UnicodeDecodeError:
-        with io.BytesIO(resp_bytes) as bytesio:
-            with gzip.GzipFile(fileobj=bytesio) as gzipfile:
-                return gzipfile.read().decode('UTF-8')
-
-
-def _filename_to_version(filename):
-    assert filename.endswith('.tar.bz2')
-    assert filename.startswith('ruby-')
-    return filename[len('ruby-'):-1 * len('.tar.bz2')]
-
-
-def _version_to_filename(version):
-    return 'ruby-{}.tar.bz2'.format(version)
-
-
-def _download_url(platform_info, version):
-    return six.moves.urllib_parse.urljoin(
-        RVM.format(**platform_info._asdict()), _version_to_filename(version),
-    )
-
-
-def get_prebuilt_versions(platform_info):
-    url = RVM.format(**platform_info._asdict())
-    resp = _decode_response(six.moves.urllib.request.urlopen(url).read())
-    parser = GetsAHrefs()
-    parser.feed(resp)
-    return tuple(
-        Version(
-            _filename_to_version(href),
-            six.moves.urllib_parse.urljoin(url, href),
-        )
-        for href in parser.hrefs
-        if href.startswith('ruby-')
-    )
-
-
-def list_versions():
-    platform_info = get_platform_info()
-    prebuilt_versions = get_prebuilt_versions(platform_info)
-    print('Available versions for {name} {version} ({arch}):\n'.format(
-        **platform_info._asdict()
-    ))
-    print('Prebuilt:')
-    for version in prebuilt_versions:
-        print('    - {}'.format(version.version))
-
-
-def pick_version(version):
-    platform_info = get_platform_info()
-    if version == 'latest':
-        return get_prebuilt_versions(platform_info)[-1]
-    else:
-        return Version(version, _download_url(platform_info, version))
-
-
-def urlopen_closable(*args):
-    return contextlib.closing(six.moves.urllib.request.urlopen(*args))
-
-
-def _write_activate(dest, more=''):
-    with io.open(os.path.join(dest, 'bin', 'activate'), 'w') as activate:
-        activate.write(ACTIVATE.replace('DIRECTORY', pipes.quote(dest)))
-        activate.write(more)
-
-
-def make_environment(dest, version):
-    platform_info = get_platform_info()
-    filename = _version_to_filename(version.version)
-    cache_file = '{name}/{version}/{arch}/{filename}'.format(
-        filename=filename, **platform_info._asdict()
-    )
-    get_fileobj = functools.partial(urlopen_closable, version.url)
-    tar_filename = ensure_cache_file(cache_file, get_fileobj)
-    dest = os.path.abspath(dest)
-    mkdirp(dest)
-    with tarfile.open(tar_filename) as tar_file:
-        # Remove the /cache directory.
-        # It is unnecessary, and on precise it is a broken symlink
-        members = [
-            member for member in tar_file.getmembers()
-            if (
-                not member.name.endswith('/cache') and
-                '/cache/' not in member.name
-            )
-        ]
-
-        # Remove the first path segment so we extract directly into the
-        # destination directory
-        for member in members:
-            if os.sep in member.name:
-                _, member.name = member.name.split(os.sep, 1)
-            else:
-                member.name = ''
-        tar_file.extractall(dest, members)
-    _write_activate(dest)
-
-
-def make_system_environment(dest):
-    mkdirp(os.path.join(dest, 'bin'))
-    ruby = distutils.spawn.find_executable('ruby')
-    gem = distutils.spawn.find_executable('gem')
-    assert ruby and gem, (ruby, gem)
-    _write_activate(dest, more=SET_GEM_HOME)
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dest', nargs='?', metavar='DEST_DIR')
-    parser.add_argument('--ruby', default='latest')
-    parser.add_argument(
-        '--list-versions', action='store_true',
-        help='List versions available for your system',
-    )
-    args = parser.parse_args(argv)
-
-    if args.list_versions:
-        return list_versions()
-    else:
-        if not args.dest:
-            parser.error('DEST_DIR is required')
-        args.dest = os.path.abspath(args.dest)
-        if args.ruby == 'system':
-            return make_system_environment(args.dest)
-        else:
-            version = pick_version(args.ruby)
-            return make_environment(args.dest, version)
-
 
 # Roughly stolen from python virtualenv 15.0.1
 ACTIVATE = '''\
@@ -278,6 +90,206 @@ _OLD_RUBYVENV_GEM_HOME="${GEM_HOME:-}"
 GEM_HOME="$RUBYVENV/lib/gems"
 export GEM_HOME
 '''
+
+
+class Platform(NamedTuple):
+    name: str
+    version: str
+    arch: str
+
+    @property
+    def rvm_url(self) -> str:
+        return (
+            f'https://rvm.io/binaries/{self.name}/{self.version}/{self.arch}/'
+        )
+
+
+class Version(NamedTuple):
+    version: str
+    url: str
+
+
+def get_cache_dir() -> str:
+    return os.path.join(
+        os.getenv('XDG_CACHE_HOME', os.path.expanduser('~/.cache')),
+        'rubyvenv',
+    )
+
+
+def ensure_cache_file(
+        relpath: str,
+        get_fileobj: Callable[[], ContextManager[IO[bytes]]],
+) -> str:
+    cache_dir = get_cache_dir()
+    path = os.path.join(cache_dir, relpath)
+    if os.path.exists(path):
+        return path
+    else:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Write to a temporary file and then rename for atomicity
+        tmpdir = os.path.join(cache_dir, 'tmp')
+        os.makedirs(tmpdir, exist_ok=True)
+        try:
+            with tempfile.NamedTemporaryFile(dir=tmpdir, delete=False) as dst:
+                with get_fileobj() as src:
+                    shutil.copyfileobj(src, dst)
+        except BaseException:
+            os.remove(dst.name)
+            raise
+        os.rename(dst.name, path)
+        return path
+
+
+def get_platform_info() -> Platform:
+    return Platform(distro.id(), distro.version(), platform.machine())
+
+
+class GetsAHrefs(html.parser.HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hrefs: List[Optional[str]] = []
+
+    def handle_starttag(
+            self,
+            tag: str,
+            attrs: List[Tuple[str, Optional[str]]],
+    ) -> None:
+        if tag == 'a':
+            self.hrefs.append(dict(attrs)['href'])
+
+
+def _decode_response(resp_bytes: bytes) -> str:
+    """Even though we request identity, rvm.io sends us gzip."""
+    try:
+        # Try UTF-8 first, in case they ever fix their bug
+        return resp_bytes.decode('UTF-8')
+    except UnicodeDecodeError:
+        with io.BytesIO(resp_bytes) as bytesio:
+            with gzip.GzipFile(fileobj=bytesio) as gzipfile:
+                return gzipfile.read().decode('UTF-8')
+
+
+def _filename_to_version(filename: str) -> str:
+    assert filename.endswith('.tar.bz2')
+    assert filename.startswith('ruby-')
+    return filename[len('ruby-'):-1 * len('.tar.bz2')]
+
+
+def _version_to_filename(version: str) -> str:
+    return f'ruby-{version}.tar.bz2'
+
+
+def _download_url(platform_info: Platform, version: str) -> str:
+    return urllib.parse.urljoin(
+        platform_info.rvm_url, _version_to_filename(version),
+    )
+
+
+def get_prebuilt_versions(platform_info: Platform) -> Tuple[Version, ...]:
+    url = platform_info.rvm_url
+    resp = _decode_response(urllib.request.urlopen(url).read())
+    parser = GetsAHrefs()
+    parser.feed(resp)
+    return tuple(
+        Version(
+            _filename_to_version(href),
+            urllib.parse.urljoin(url, href),
+        )
+        for href in parser.hrefs
+        if href is not None and href.startswith('ruby-')
+    )
+
+
+def list_versions() -> int:
+    platform_info = get_platform_info()
+    prebuilt_versions = get_prebuilt_versions(platform_info)
+    print(
+        'Available versions for {name} {version} ({arch}):\n'.format(
+            **platform_info._asdict(),
+        ),
+    )
+    print('Prebuilt:')
+    for version in prebuilt_versions:
+        print(f'    - {version.version}')
+    return 0
+
+
+def pick_version(version: str) -> Version:
+    platform_info = get_platform_info()
+    if version == 'latest':
+        return get_prebuilt_versions(platform_info)[-1]
+    else:
+        return Version(version, _download_url(platform_info, version))
+
+
+def _write_activate(dest: str, more: str = '') -> None:
+    with open(os.path.join(dest, 'bin', 'activate'), 'w') as activate:
+        activate.write(ACTIVATE.replace('DIRECTORY', pipes.quote(dest)))
+        activate.write(more)
+
+
+def make_environment(dest: str, version: Version) -> int:
+    platform_info = get_platform_info()
+    filename = _version_to_filename(version.version)
+    cache_file = '{name}/{version}/{arch}/{filename}'.format(
+        filename=filename, **platform_info._asdict(),
+    )
+    get_fileobj = functools.partial(urllib.request.urlopen, version.url)
+    tar_filename = ensure_cache_file(cache_file, get_fileobj)
+    dest = os.path.abspath(dest)
+    os.makedirs(dest, exist_ok=True)
+    with tarfile.open(tar_filename) as tar_file:
+        # Remove the /cache directory.
+        # It is unnecessary, and on precise it is a broken symlink
+        members = [
+            member for member in tar_file.getmembers()
+            if not member.name.endswith('/cache')
+            if '/cache/' not in member.name
+        ]
+
+        # Remove the first path segment so we extract directly into the
+        # destination directory
+        for member in members:
+            if os.sep in member.name:
+                _, member.name = member.name.split(os.sep, 1)
+            else:
+                member.name = ''
+        tar_file.extractall(dest, members)
+    _write_activate(dest)
+    return 0
+
+
+def make_system_environment(dest: str) -> int:
+    os.makedirs(os.path.join(dest, 'bin'), exist_ok=True)
+    ruby = distutils.spawn.find_executable('ruby')
+    gem = distutils.spawn.find_executable('gem')
+    assert ruby and gem, (ruby, gem)
+    _write_activate(dest, more=SET_GEM_HOME)
+    return 0
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dest', nargs='?', metavar='DEST_DIR')
+    parser.add_argument('--ruby', default='latest')
+    parser.add_argument(
+        '--list-versions', action='store_true',
+        help='List versions available for your system',
+    )
+    args = parser.parse_args(argv)
+
+    if args.list_versions:
+        return list_versions()
+    else:
+        if not args.dest:
+            parser.error('DEST_DIR is required')
+        args.dest = os.path.abspath(args.dest)
+        if args.ruby == 'system':
+            return make_system_environment(args.dest)
+        else:
+            version = pick_version(args.ruby)
+            return make_environment(args.dest, version)
+
 
 if __name__ == '__main__':
     exit(main())

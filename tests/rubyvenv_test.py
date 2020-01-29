@@ -1,15 +1,12 @@
-from __future__ import absolute_import
-from __future__ import unicode_literals
-
 import io
 import os
 import platform
 import subprocess
+import urllib.request
+from unittest import mock
 
 import distro
-import mock
 import pytest
-import six
 
 import rubyvenv
 from testing.resources import resource
@@ -41,7 +38,7 @@ class BoomError(RuntimeError):
     pass
 
 
-class RaisesAfterSomeIO(object):
+class RaisesAfterSomeIO:
     def __init__(self):
         self.until_boom = 3
 
@@ -89,14 +86,6 @@ def test_ensure_cache_exception_safety(mocked_cache):
     assert mocked_cache.join('tmp').listdir() == []
 
 
-def test_mkdirp(tmpdir):
-    path = tmpdir.join('foo/bar')
-    assert not path.exists()
-    rubyvenv.mkdirp(path.strpath)
-    assert path.isdir()
-    rubyvenv.mkdirp(path.strpath)
-
-
 def test_gets_a_hrefs_trivial():
     parser = rubyvenv.GetsAHrefs()
     parser.feed('')
@@ -104,7 +93,7 @@ def test_gets_a_hrefs_trivial():
 
 
 def test_gets_a_hrefs_ubuntu_16_04_x86_64():
-    contents = io.open(resource('ubuntu_16_04_x86_64.htm')).read()
+    contents = open(resource('ubuntu_16_04_x86_64.htm')).read()
     parser = rubyvenv.GetsAHrefs()
     parser.feed(contents)
     assert parser.hrefs == [
@@ -123,7 +112,7 @@ def test_decode_response_non_gzip():
 
 
 def test_decode_response_gzip():
-    contents = io.open(resource('ubuntu_16_04_x86_64.htm.gzip'), 'rb').read()
+    contents = open(resource('ubuntu_16_04_x86_64.htm.gzip'), 'rb').read()
     ret = rubyvenv._decode_response(contents)
     assert 'ruby-2.0.0-p648.tar.bz2' in ret
 
@@ -161,11 +150,9 @@ def xenial():
 
 @pytest.fixture
 def returns_xenial():
-    contents = io.open(resource('ubuntu_16_04_x86_64.htm.gzip'), 'rb').read()
-    with mock.patch.object(
-        six.moves.urllib.request, 'urlopen',
-        **{'return_value.read.return_value': contents}
-    ):
+    contents = open(resource('ubuntu_16_04_x86_64.htm.gzip'), 'rb').read()
+    with mock.patch.object(urllib.request, 'urlopen') as mck:
+        mck.return_value.read.return_value = contents
         yield
 
 
@@ -205,7 +192,7 @@ def test_get_prebuilt_versions():
 @pytest.mark.usefixtures('xenial', 'returns_xenial')
 def test_list_versions(capsys):
     ret = rubyvenv.main(('--list',))
-    assert ret is None
+    assert ret == 0
     out, _ = capsys.readouterr()
     assert out == (
         'Available versions for ubuntu 16.04 (x86_64):\n'
@@ -246,7 +233,7 @@ def test_missing_dest_dir(capsys):
 def _run(env, sh):
     return subprocess.check_output((
         'bash', '-euc',
-        'PS1="$ "; . {env}/bin/activate; {sh}'.format(env=env, sh=sh),
+        f'PS1="$ "; . {env}/bin/activate; {sh}',
     )).decode('UTF-8')
 
 
