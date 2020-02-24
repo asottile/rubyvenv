@@ -97,11 +97,11 @@ class Platform(NamedTuple):
     version: str
     arch: str
 
-
-def rvm_url(self: Platform) -> str:
-    return (
-        f'https://rvm.io/binaries/{self.name}/{self.version}/{self.arch}/'
-    )
+    @property
+    def rvm_url(self) -> str:
+        return (
+            f'https://rvm.io/binaries/{self.name}/{self.version}/{self.arch}/'
+        )
 
 
 class Version(NamedTuple):
@@ -181,12 +181,12 @@ def _version_to_filename(version: str) -> str:
 
 def _download_url(platform_info: Platform, version: str) -> str:
     return urllib.parse.urljoin(
-        rvm_url(platform_info), _version_to_filename(version),
+        platform_info.rvm_url, _version_to_filename(version),
     )
 
 
 def get_prebuilt_versions(platform_info: Platform) -> Tuple[Version, ...]:
-    url = rvm_url(platform_info)
+    url = platform_info.rvm_url
     resp = _decode_response(urllib.request.urlopen(url).read())
     parser = GetsAHrefs()
     parser.feed(resp)
