@@ -1,5 +1,4 @@
 import argparse
-import distutils.spawn
 import functools
 import gzip
 import html.parser
@@ -261,8 +260,8 @@ def make_environment(dest: str, version: Version) -> int:
 
 def make_system_environment(dest: str) -> int:
     os.makedirs(os.path.join(dest, 'bin'), exist_ok=True)
-    ruby = distutils.spawn.find_executable('ruby')
-    gem = distutils.spawn.find_executable('gem')
+    ruby = shutil.which('ruby')
+    gem = shutil.which('gem')
     assert ruby and gem, (ruby, gem)
     _write_activate(dest, more=SET_GEM_HOME)
     return 0
