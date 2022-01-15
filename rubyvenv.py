@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import functools
 import gzip
@@ -14,11 +16,8 @@ import urllib.request
 from typing import Callable
 from typing import ContextManager
 from typing import IO
-from typing import List
 from typing import NamedTuple
-from typing import Optional
 from typing import Sequence
-from typing import Tuple
 
 import distro
 
@@ -146,12 +145,12 @@ def get_platform_info() -> Platform:
 class GetsAHrefs(html.parser.HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.hrefs: List[Optional[str]] = []
+        self.hrefs: list[str | None] = []
 
     def handle_starttag(
             self,
             tag: str,
-            attrs: List[Tuple[str, Optional[str]]],
+            attrs: list[tuple[str, str | None]],
     ) -> None:
         if tag == 'a':
             self.hrefs.append(dict(attrs)['href'])
@@ -184,7 +183,7 @@ def _download_url(platform_info: Platform, version: str) -> str:
     )
 
 
-def get_prebuilt_versions(platform_info: Platform) -> Tuple[Version, ...]:
+def get_prebuilt_versions(platform_info: Platform) -> tuple[Version, ...]:
     url = platform_info.rvm_url
     resp = _decode_response(urllib.request.urlopen(url).read())
     parser = GetsAHrefs()
@@ -267,7 +266,7 @@ def make_system_environment(dest: str) -> int:
     return 0
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('dest', nargs='?', metavar='DEST_DIR')
     parser.add_argument('--ruby', default='latest')
