@@ -1,9 +1,6 @@
 *.egg-info
 *.py[co]
 /.coverage
-/.mypy_cache
 /.nenv-css-explore/
 /.tox
 /dist
-/venv*
-coverage-html
