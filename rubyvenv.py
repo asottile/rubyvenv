@@ -226,6 +226,11 @@ def _write_activate(dest: str, more: str = '') -> None:
         activate.write(more)
 
 
+def _write_gitignore(dest: str) -> None:
+    with open(os.path.join(dest, '.gitignore'), 'w') as gitignore:
+        gitignore.write('# created by rubyvenv automatically\n*\n')
+
+
 def make_environment(dest: str, version: Version) -> int:
     platform_info = get_platform_info()
     filename = _version_to_filename(version.version)
@@ -254,6 +259,7 @@ def make_environment(dest: str, version: Version) -> int:
                 member.name = ''
         tar_file.extractall(dest, members)
     _write_activate(dest)
+    _write_gitignore(dest)
     return 0
 
 
@@ -263,6 +269,7 @@ def make_system_environment(dest: str) -> int:
     gem = shutil.which('gem')
     assert ruby and gem, (ruby, gem)
     _write_activate(dest, more=SET_GEM_HOME)
+    _write_gitignore(dest)
     return 0
 
 
