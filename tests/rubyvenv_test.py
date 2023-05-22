@@ -258,3 +258,6 @@ def test_integration_system(tmpdir):
 
     _run(env, 'gem install sass --no-document')
     assert _run(env, 'which sass') == env.join('lib/gems/bin/sass') + '\n'
+
+    gitignore = env.join('.gitignore').read()
+    assert gitignore == '# created by rubyvenv automatically\n*\n'
