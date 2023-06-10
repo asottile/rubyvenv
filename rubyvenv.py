@@ -6,8 +6,8 @@ import gzip
 import html.parser
 import io
 import os.path
-import pipes
 import platform
+import shlex
 import shutil
 import tarfile
 import tempfile
@@ -222,7 +222,7 @@ def pick_version(version: str) -> Version:
 
 def _write_activate(dest: str, more: str = '') -> None:
     with open(os.path.join(dest, 'bin', 'activate'), 'w') as activate:
-        activate.write(ACTIVATE.replace('DIRECTORY', pipes.quote(dest)))
+        activate.write(ACTIVATE.replace('DIRECTORY', shlex.quote(dest)))
         activate.write(more)
 
 
