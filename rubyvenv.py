@@ -13,11 +13,11 @@ import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
+from collections.abc import Sequence
 from typing import Callable
 from typing import ContextManager
 from typing import IO
 from typing import NamedTuple
-from typing import Sequence
 
 import distro
 
