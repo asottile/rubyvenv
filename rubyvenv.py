@@ -130,8 +130,7 @@ def ensure_cache_file(
         try:
             with tempfile.NamedTemporaryFile(dir=tmpdir, delete=False) as dst:
                 with get_fileobj() as src:
-                    # https://github.com/python/mypy/issues/15031
-                    shutil.copyfileobj(src, dst)  # type: ignore[misc]
+                    shutil.copyfileobj(src, dst)
         except BaseException:
             os.remove(dst.name)
             raise
